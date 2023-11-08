@@ -13,6 +13,7 @@
 
 import Foundation
 import CryptoKit
+import Base32
 
 struct Constants {
     static let encodedSeedLength: Int = 58
@@ -27,6 +28,8 @@ struct Constants {
      static let prefixByteUser: UInt8 = 20 << 3
      static let prefixByteService: UInt8 = 21 << 3
      static let prefixByteUnknown: UInt8 = 23 << 3
+    
+    static let ed25519SignatureByteSize = 64
 
      static let publicKeyPrefixes: [UInt8] = [
          prefixByteAccount,
@@ -106,21 +109,26 @@ enum KeyPairType: String {
     }
 }
 
-enum KeyPairError: Error {
+enum NkeysErrors: Error {
     case invalidSeedLength(String)
     case invalidPrefix(String)
     case decodingError(String)
     case randomBytesError(String)
     case invalidRawBytesLength(String)
+    case missingPrivateKey(String)
+    case invalidChecksum(String)
+    case invalidKeyPair(String)
+    case invalidSignatureSize(String)
+    case verificationFailed(String)
 }
 
 struct KeyPair {
     let keyPairType: KeyPairType
-    let publicKey: Curve25519.Signing.PublicKey
-    let privateKey: Curve25519.Signing.PrivateKey
+    private let publicKey: Curve25519.Signing.PublicKey
+    private let privateKey: Curve25519.Signing.PrivateKey?
    
     /// Explicit default initializer.
-    init(keyPairType: KeyPairType, publicKey: Curve25519.Signing.PublicKey, privateKey: Curve25519.Signing.PrivateKey) {
+    init(keyPairType: KeyPairType, publicKey: Curve25519.Signing.PublicKey, privateKey: Curve25519.Signing.PrivateKey?) {
         self.keyPairType = keyPairType
         self.publicKey = publicKey
         self.privateKey = privateKey
@@ -129,7 +137,7 @@ struct KeyPair {
     /// Initializer that creates [KeyPair] from random bytes.
     init(keyPairType: KeyPairType) throws {
         guard let randomBytes =  generateSeedRandom() else {
-            throw KeyPairError.randomBytesError("Failed to generate random bytes")
+            throw NkeysErrors.randomBytesError("Failed to generate random bytes")
         }
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: randomBytes)
         self = KeyPair(keyPairType: keyPairType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
@@ -138,7 +146,7 @@ struct KeyPair {
     /// Initializer that creates [KeyPair] from provided [Data]. It has to be 32 bytes long.
     init(keyPairType: KeyPairType, rawBytes: Data) throws  {
         guard rawBytes.count == 32 else {
-            throw KeyPairError.invalidRawBytesLength("Raw bytes data has to be of 32 lenght")
+            throw NkeysErrors.invalidRawBytesLength("Raw bytes data has to be of 32 lenght")
         }
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: rawBytes)
         self = KeyPair(keyPairType: keyPairType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
@@ -147,31 +155,86 @@ struct KeyPair {
     /// Initlializer that creates [KeyPair] from provided seed.
     init(seed: String) throws {
         guard seed.count == Constants.encodedSeedLength else {
-            throw KeyPairError.invalidSeedLength("Bad seed length: \(seed.count)")
+            throw NkeysErrors.invalidSeedLength("Bad seed length: \(seed.count)")
         }
         
-        guard let raw = Data(base64Encoded: seed) else {
-                throw KeyPairError.decodingError("Failed to decode base32 string")
-            }
+        // TODO: We should not upwrap here
+        let raw = try decodeRaw(seed.data(using: .utf8)!)
 
         let b1 = raw[0] & 248
         guard b1 == Constants.prefixByteSeed else {
-                throw KeyPairError.invalidPrefix("Incorrect byte prefix: \(raw[0])")
+                throw NkeysErrors.invalidPrefix("Incorrect byte prefix: \(raw[0])")
             }
 
-            let b2 = (raw[0] & 7) << 5 | (raw[1] & 248) >> 3
-            let kpType = KeyPairType(fromPrefixByte: b2)
-            let seed = raw[2...] // Extract the seed part from the raw bytes.
+        let b2 = (raw[0] & 7) << 5 | ((raw[1] & 248) >> 3)
+        let kpType = KeyPairType(fromPrefixByte: b2)
+        let seed = raw[2...] // Extract the seed part from the raw bytes.
         
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
         
         self =  KeyPair(keyPairType: kpType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
     }
     
+    init(publicKey: String) throws {
+        var raw = try decodeRaw(publicKey.data(using: .utf8)!)
+        
+        let prefix = raw[0]
+        if !Constants.publicKeyPrefixes.contains(prefix) {
+            throw NkeysErrors.invalidPrefix("Not a valid public key prefix \(prefix)")
+        }
+        raw.remove(at: 0)
+        let signingKey = try Curve25519.Signing.PublicKey.init(rawRepresentation: raw)
+        self = KeyPair(keyPairType: KeyPairType.init(fromPrefixByte: prefix), publicKey: signingKey, privateKey: nil)
+        
+    }
+    
     /// Attempts to sign the given input with the key pair's seed
     func sign(input: Data) throws -> Data {
-        try self.privateKey.signature(for: input)
+        guard let privateKey = self.privateKey else {
+            throw NkeysErrors.missingPrivateKey("Can't sign PublicKey only KeyPair")
+        }
+        return try privateKey.signature(for: input)
     }
+    
+    func verify(input: Data, signature sig: Data) throws {
+        guard sig.count == Constants.ed25519SignatureByteSize else {
+            throw NkeysErrors.invalidSignatureSize("Signature size should be \(Constants.ed25519SignatureByteSize) but is \(sig.count)")
+           }
+        if self.publicKey.isValidSignature(sig, for: input) {
+            return
+        } else {
+            throw NkeysErrors.verificationFailed("signature is not valid for given input")
+        }
+            
+       }
+    var publicKeyEncoded: String {
+        var raw = Data()
+        raw.append(self.keyPairType.getPrefixByte())
+        raw.append(contentsOf: self.publicKey.rawRepresentation)
+        pushCRC(data: &raw)
+        return base32Encode(raw, padding: false)
+    }
+    
+    var seed: String {
+        get throws {
+        guard let seed = self.privateKey else {
+            throw NkeysErrors.invalidKeyPair("Can't return seed from KeyPair with Public Key only")
+        }
+        var raw = Data()
+        let prefixBytes = self.keyPairType.getPrefixByte()
+        
+        let b1 = Constants.prefixByteSeed | prefixBytes >> 5
+        let b2 =  (prefixBytes & 31) << 3
+        
+        raw.append(b1)
+        raw.append(b2)
+        raw.append(seed.rawRepresentation)
+        pushCRC(data: &raw)
+        
+        return raw.base32EncodedStringNoPadding
+        }
+    }
+    
 }
 
 func generateSeedRandom() -> Data? {
@@ -179,4 +242,15 @@ func generateSeedRandom() -> Data? {
     let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
     guard status == errSecSuccess else { return nil }
     return Data(bytes)
+}
+
+func decodeRaw(_ data: Data) throws -> Data {
+    var decoded = data.base32DecodedData!
+    let checksum = extractCRC(data: &decoded)
+    
+    let validChecksjm = validChecksum(data: decoded, expected: checksum)
+    if !validChecksjm {
+        throw NkeysErrors.invalidChecksum("Checksum mismatch")
+    }
+    return decoded
 }
