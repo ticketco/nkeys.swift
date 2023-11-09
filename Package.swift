@@ -19,7 +19,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Jarema/Base32",
-            from: "0.10.0"
+            branch: "main"
         )
     ],
     targets: [

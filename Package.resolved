@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Jarema/Base32",
       "state" : {
-        "revision" : "104bcefb0666a9eba75562bed90f5ab082d9f560",
-        "version" : "0.10.0"
+        "branch" : "main",
+        "revision" : "2d59facfe49df7e90bbcf7f8f454f9c8e16b3bbf"
       }
     }
   ],
