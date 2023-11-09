@@ -9,7 +9,7 @@ let package = Package(
         .watchOS(.v6),
         .macOS(.v10_15)
     ],
-    
+
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
@@ -19,7 +19,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/Jarema/Base32",
-            from: "0.10.1"
+            branch: "main"
         )
     ],
     targets: [
@@ -31,7 +31,7 @@ let package = Package(
                 .product(name: "Base32", package: "Base32")
             ]
         ),
-            
+
         .testTarget(
             name: "nkeys.swiftTests",
             dependencies: ["nkeys.swift"]),
