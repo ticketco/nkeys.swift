@@ -128,14 +128,14 @@ public struct KeyPair {
     private let privateKey: Curve25519.Signing.PrivateKey?
 
     /// Explicit default initializer.
-    init(keyPairType: KeyPairType, publicKey: Curve25519.Signing.PublicKey, privateKey: Curve25519.Signing.PrivateKey?) {
+    public init(keyPairType: KeyPairType, publicKey: Curve25519.Signing.PublicKey, privateKey: Curve25519.Signing.PrivateKey?) {
         self.keyPairType = keyPairType
         self.publicKey = publicKey
         self.privateKey = privateKey
     }
 
     /// Initializer that creates [KeyPair] from random bytes.
-    init(keyPairType: KeyPairType) throws {
+    public init(keyPairType: KeyPairType) throws {
         guard let randomBytes =  generateSeedRandom() else {
             throw NkeysErrors.randomBytesError("Failed to generate random bytes")
         }
@@ -144,7 +144,7 @@ public struct KeyPair {
     }
 
     /// Initializer that creates [KeyPair] from provided [Data]. It has to be 32 bytes long.
-    init(keyPairType: KeyPairType, rawBytes: Data) throws  {
+    public init(keyPairType: KeyPairType, rawBytes: Data) throws  {
         guard rawBytes.count == 32 else {
             throw NkeysErrors.invalidRawBytesLength("Raw bytes data has to be of 32 lenght")
         }
@@ -153,7 +153,7 @@ public struct KeyPair {
     }
 
     /// Initlializer that creates [KeyPair] from provided seed.
-    init(seed: String) throws {
+    public init(seed: String) throws {
         guard seed.count == Constants.encodedSeedLength else {
             throw NkeysErrors.invalidSeedLength("Bad seed length: \(seed.count)")
         }
@@ -175,7 +175,7 @@ public struct KeyPair {
         self =  KeyPair(keyPairType: kpType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
     }
 
-    init(publicKey: String) throws {
+    public init(publicKey: String) throws {
         var raw = try decodeRaw(publicKey.data(using: .utf8)!)
 
         let prefix = raw[0]
