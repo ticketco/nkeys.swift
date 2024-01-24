@@ -28,7 +28,7 @@ struct Constants {
      static let prefixByteUser: UInt8 = 20 << 3
      static let prefixByteService: UInt8 = 21 << 3
      static let prefixByteUnknown: UInt8 = 23 << 3
-    
+
     static let ed25519SignatureByteSize = 64
 
      static let publicKeyPrefixes: [UInt8] = [
@@ -42,7 +42,7 @@ struct Constants {
      ]
 }
 
-enum KeyPairType: String {
+public enum KeyPairType: String {
     /// A server identity
     case server = "SERVER"
     /// A cluster (group of servers) identity
@@ -57,7 +57,7 @@ enum KeyPairType: String {
     case module = "MODULE"
     /// A service / service provider identity
     case service = "SERVICE"
-    
+
     init?(from string: String) {
         let uppercased = string.uppercased();
         if let value = KeyPairType(rawValue: uppercased) {
@@ -66,7 +66,7 @@ enum KeyPairType: String {
             return nil
         }
     }
-    
+
     // Initializer that tries to create an enum from a prefix byte
     init(fromPrefixByte prefixByte: UInt8) {
         switch prefixByte {
@@ -88,7 +88,7 @@ enum KeyPairType: String {
             // If the byte does not match any case, return nil
             self = .operator }
     }
-    
+
     func getPrefixByte() -> UInt8 {
         switch self {
         case .server:
@@ -109,7 +109,7 @@ enum KeyPairType: String {
     }
 }
 
-enum NkeysErrors: Error {
+public enum NkeysErrors: Error {
     case invalidSeedLength(String)
     case invalidPrefix(String)
     case decodingError(String)
@@ -126,14 +126,14 @@ struct KeyPair {
     let keyPairType: KeyPairType
     private let publicKey: Curve25519.Signing.PublicKey
     private let privateKey: Curve25519.Signing.PrivateKey?
-   
+
     /// Explicit default initializer.
     init(keyPairType: KeyPairType, publicKey: Curve25519.Signing.PublicKey, privateKey: Curve25519.Signing.PrivateKey?) {
         self.keyPairType = keyPairType
         self.publicKey = publicKey
         self.privateKey = privateKey
     }
-    
+
     /// Initializer that creates [KeyPair] from random bytes.
     init(keyPairType: KeyPairType) throws {
         guard let randomBytes =  generateSeedRandom() else {
@@ -142,7 +142,7 @@ struct KeyPair {
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: randomBytes)
         self = KeyPair(keyPairType: keyPairType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
     }
-    
+
     /// Initializer that creates [KeyPair] from provided [Data]. It has to be 32 bytes long.
     init(keyPairType: KeyPairType, rawBytes: Data) throws  {
         guard rawBytes.count == 32 else {
@@ -151,13 +151,13 @@ struct KeyPair {
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: rawBytes)
         self = KeyPair(keyPairType: keyPairType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
     }
-    
+
     /// Initlializer that creates [KeyPair] from provided seed.
     init(seed: String) throws {
         guard seed.count == Constants.encodedSeedLength else {
             throw NkeysErrors.invalidSeedLength("Bad seed length: \(seed.count)")
         }
-        
+
         // TODO: We should not upwrap here
         let raw = try decodeRaw(seed.data(using: .utf8)!)
 
@@ -169,15 +169,15 @@ struct KeyPair {
         let b2 = (raw[0] & 7) << 5 | ((raw[1] & 248) >> 3)
         let kpType = KeyPairType(fromPrefixByte: b2)
         let seed = raw[2...] // Extract the seed part from the raw bytes.
-        
+
         let signingKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
-        
+
         self =  KeyPair(keyPairType: kpType, publicKey: signingKey.publicKey, privateKey: signingKey.self)
     }
-    
+
     init(publicKey: String) throws {
         var raw = try decodeRaw(publicKey.data(using: .utf8)!)
-        
+
         let prefix = raw[0]
         if !Constants.publicKeyPrefixes.contains(prefix) {
             throw NkeysErrors.invalidPrefix("Not a valid public key prefix \(prefix)")
@@ -185,18 +185,18 @@ struct KeyPair {
         raw.remove(at: 0)
         let signingKey = try Curve25519.Signing.PublicKey.init(rawRepresentation: raw)
         self = KeyPair(keyPairType: KeyPairType.init(fromPrefixByte: prefix), publicKey: signingKey, privateKey: nil)
-        
+
     }
-    
+
     /// Attempts to sign the given input with the key pair's seed
-    func sign(input: Data) throws -> Data {
+    public func sign(input: Data) throws -> Data {
         guard let privateKey = self.privateKey else {
             throw NkeysErrors.missingPrivateKey("Can't sign PublicKey only KeyPair")
         }
         return try privateKey.signature(for: input)
     }
-    
-    func verify(input: Data, signature sig: Data) throws {
+
+    public func verify(input: Data, signature sig: Data) throws {
         guard sig.count == Constants.ed25519SignatureByteSize else {
             throw NkeysErrors.invalidSignatureSize("Signature size should be \(Constants.ed25519SignatureByteSize) but is \(sig.count)")
            }
@@ -205,7 +205,7 @@ struct KeyPair {
         } else {
             throw NkeysErrors.verificationFailed("signature is not valid for given input")
         }
-            
+
        }
     var publicKeyEncoded: String {
         var raw = Data()
@@ -214,7 +214,7 @@ struct KeyPair {
         pushCRC(data: &raw)
         return base32Encode(raw, padding: false)
     }
-    
+
     var seed: String {
         get throws {
         guard let seed = self.privateKey else {
@@ -222,19 +222,19 @@ struct KeyPair {
         }
         var raw = Data()
         let prefixBytes = self.keyPairType.getPrefixByte()
-        
+
         let b1 = Constants.prefixByteSeed | prefixBytes >> 5
         let b2 =  (prefixBytes & 31) << 3
-        
+
         raw.append(b1)
         raw.append(b2)
         raw.append(seed.rawRepresentation)
         pushCRC(data: &raw)
-        
+
         return raw.base32EncodedStringNoPadding
         }
     }
-    
+
 }
 
 func generateSeedRandom() -> Data? {
@@ -247,7 +247,7 @@ func generateSeedRandom() -> Data? {
 func decodeRaw(_ data: Data) throws -> Data {
     var decoded = data.base32DecodedData!
     let checksum = extractCRC(data: &decoded)
-    
+
     let validChecksjm = validChecksum(data: decoded, expected: checksum)
     if !validChecksjm {
         throw NkeysErrors.invalidChecksum("Checksum mismatch")
