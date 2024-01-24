@@ -122,7 +122,7 @@ public enum NkeysErrors: Error {
     case verificationFailed(String)
 }
 
-struct KeyPair {
+public struct KeyPair {
     let keyPairType: KeyPairType
     private let publicKey: Curve25519.Signing.PublicKey
     private let privateKey: Curve25519.Signing.PrivateKey?
