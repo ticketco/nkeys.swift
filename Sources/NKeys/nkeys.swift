@@ -12,7 +12,6 @@
 // limitations under the License.
 
 import Foundation
-import CryptoKit
 import Base32
 import Sodium
 
@@ -251,10 +250,7 @@ public struct KeyPair {
 }
 
 func generateSeedRandom() -> Data? {
-    var bytes = [UInt8](repeating: 0, count: 32)
-    let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-    guard status == errSecSuccess else { return nil }
-    return Data(bytes)
+    Data((0..<32).map { _ in UInt8.random(in: 0...255) })
 }
 
 func decodeRaw(_ data: Data) throws -> Data {
