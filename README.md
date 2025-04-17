@@ -39,6 +39,6 @@ This fork version supports Linux. This is a upstream dependency of Nats.
 
 - Open Docker Desktop if not open yet
 - Navigate to the current base directory in your terminal, ` cd ..../nkeys.swift/`
-- To build the docker image, `docker build -t swift-nkeys-tests`
+- To build the docker image, `docker build -t swift-nkeys-tests .`
 - To run the tests in linux environment, `docker run -it --rm swift-nkeys-tests /bin/bash`
     - then on the bash command prompt run `swift test`
