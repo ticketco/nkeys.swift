@@ -30,3 +30,15 @@ V - Service / Service Provider
 P - Private Key
 
 For seeds, the first encoded prefix is S, and the second character will be the type for the public key, e.g. SU is a seed for a user key pair, SA is a seed for an account key pair.
+
+## Adding support for Linux
+
+This fork version supports Linux. This is a upstream dependency of Nats.
+
+### Docker
+
+- Open Docker Desktop if not open yet
+- Navigate to the current base directory in your terminal, ` cd ..../nkeys.swift/`
+- To build the docker image, `docker build -t swift-nkeys-tests`
+- To run the tests in linux environment, `docker run -it --rm swift-nkeys-tests /bin/bash`
+    - then on the bash command prompt run `swift test`
